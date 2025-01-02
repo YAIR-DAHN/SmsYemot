@@ -894,4 +894,20 @@ tr:hover td {
     max-width: none;
     white-space: normal;
   }
+}
+
+.excel-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .excel-controls {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .excel-controls .btn {
+    width: 100%;
+  }
 } 

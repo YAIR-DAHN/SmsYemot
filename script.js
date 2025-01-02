@@ -131,23 +131,26 @@ class ContactManager {
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: 'array' });
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+          const rows = XLSX.utils.sheet_to_json(firstSheet, { 
+            header: 1,
+            raw: false
+          });
           
           let imported = 0;
           const errors = [];
           
-          for (let i = 1; i < rows.length; i++) {
+          for (let i = 2; i < rows.length; i++) {
             const row = rows[i];
             if (row[0] && row[1]) {
               try {
                 this.add({
-                  name: row[0],
-                  phone: row[1].toString(),
-                  var1: row[2] || '',
-                  var2: row[3] || '',
-                  var3: row[4] || '',
-                  var4: row[5] || '',
-                  var5: row[6] || ''
+                  name: row[0].trim(),
+                  phone: row[1].toString().trim(),
+                  var1: row[2]?.trim() || '',
+                  var2: row[3]?.trim() || '',
+                  var3: row[4]?.trim() || '',
+                  var4: row[5]?.trim() || '',
+                  var5: row[6]?.trim() || ''
                 });
                 imported++;
               } catch (err) {
@@ -163,6 +166,35 @@ class ContactManager {
       };
       reader.readAsArrayBuffer(file);
     });
+  }
+
+  exportToExcel() {
+    if (!this.contacts.length) {
+      alert('אין אנשי קשר לייצוא');
+      return;
+    }
+
+    // יצירת מערך נתונים לאקסל
+    const data = [
+      ['שם', 'טלפון', 'משתנה 1', 'משתנה 2', 'משתנה 3', 'משתנה 4', 'משתנה 5'], // כותרות
+      ...this.contacts.map(contact => [
+        contact.name,
+        contact.phone,
+        contact.var1 || '',
+        contact.var2 || '',
+        contact.var3 || '',
+        contact.var4 || '',
+        contact.var5 || ''
+      ])
+    ];
+
+    // יצירת גיליון עבודה
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "אנשי קשר");
+
+    // הורדת הקובץ
+    XLSX.writeFile(wb, "contacts.xlsx");
   }
 }
 
@@ -688,4 +720,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize App
   initializeApp();
+
+  document.getElementById('export-contacts').addEventListener('click', () => {
+    contactManager.exportToExcel();
+  });
 }); 

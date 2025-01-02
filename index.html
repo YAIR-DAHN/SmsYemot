@@ -81,12 +81,20 @@
             <i class="ri-user-add-line"></i>
             הוסף איש קשר חדש
           </button>
-          <div class="excel-import">
+          <div class="excel-controls">
+            <a href="./assets/contacts_template.xlsx" download class="btn btn-secondary" style="text-decoration: none;">
+              <i class="ri-file-text-line"></i>
+              הורדת תבנית
+            </a>
             <label class="btn btn-secondary">
-              <i class="ri-file-excel-line"></i>
+              <i class="ri-upload-2-line"></i>
               ייבוא מאקסל
               <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" class="hidden">
             </label>
+            <button id="export-contacts" class="btn btn-secondary">
+              <i class="ri-download-2-line"></i>
+              ייצוא לאקסל
+            </button>
           </div>
         </div>
       </div>
