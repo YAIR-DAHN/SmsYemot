@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מערכת שליחת SMS - Vanilla JS</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css">
+</head>
+<body>
+  <div id="login-screen">
+    <div class="login-container">
+      <div class="welcome-section">
+        <h2>ברוכים הבאים</h2>
+        <p class="welcome-text">
+          ברוכים הבאים למערכת הפצת SMS מותאמת אישית, דרך מערכת זו תוכלו לשלוח SMS לרשימת תפוצה תוך התאמת הודעה אישית לכל נמען.
+        </p>
+        <p class="provider-info">
+          שליחת ההודעות מתבצעת על ידי 
+          <a href="https://www.yemot.co.il/" target="_blank" rel="noopener">
+            חברת ימות המשיח - פתרונות תקשורת
+          </a>
+          יש להכניס את שם המשתמש והסיסמה של המערכת שלכם בימות המשיח.
+        </p>
+      </div>
+
+      <form class="login-form">
+        <div class="form-group">
+          <label for="username">שם משתמש:</label>
+          <input type="text" id="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">סיסמה:</label>
+          <input type="password" id="password" required>
+        </div>
+        <button type="submit" id="btn-login" class="btn btn-primary btn-login">
+          <i class="ri-login-box-line"></i>
+          התחבר למערכת
+        </button>
+        <p id="login-error" class="error-message"></p>
+      </form>
+
+      <div class="disclaimer">
+        <p>האתר נבנה ע"י צד שלישי ואינו קשור לחברת ימות המשיח</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-screen" class="hidden">
+    <nav class="main-nav">
+      <div class="nav-container container">
+        <div class="nav-brand">מערכת SMS</div>
+        <div class="nav-links">
+          <button id="goto-contacts" class="btn btn-secondary">
+            <i class="ri-contacts-book-line"></i>
+            רשימת תפוצה
+          </button>
+          <button id="goto-message" class="btn btn-secondary">
+            <i class="ri-message-2-line"></i>
+            ניסוח הודעה
+          </button>
+          <button id="goto-history" class="btn btn-secondary">
+            <i class="ri-history-line"></i>
+            דוח שליחות
+          </button>
+          <button id="logout" class="btn btn-secondary">
+            <i class="ri-logout-box-r-line"></i>
+            התנתק
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <div id="contacts-section" class="hidden section-container">
+      <div class="section-header">
+        <h2>רשימת תפוצה</h2>
+        <div class="controls">
+          <button id="show-add-form" class="btn btn-primary">
+            <i class="ri-user-add-line"></i>
+            הוסף איש קשר חדש
+          </button>
+          <div class="excel-import">
+            <label class="btn btn-secondary">
+              <i class="ri-file-excel-line"></i>
+              ייבוא מאקסל
+              <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" class="hidden">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-content">
+        <div id="add-contact-form" class="contact-form hidden fade-in">
+          <div class="form-header">
+            <h3>הוספת איש קשר חדש</h3>
+            <button type="button" class="btn-close" id="close-form" aria-label="סגור">×</button>
+          </div>
+          <form id="new-contact-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="contact-name">שם:</label>
+                <input type="text" id="contact-name" name="name" required>
+              </div>
+              <div class="form-group">
+                <label for="contact-phone">טלפון:</label>
+                <input type="tel" id="contact-phone" name="phone" required>
+              </div>
+            </div>
+            <div class="form-row variables-row">
+              <div class="form-group">
+                <label for="var1">משתנה 1:</label>
+                <input type="text" id="var1" name="var1">
+              </div>
+              <div class="form-group">
+                <label for="var2">משתנה 2:</label>
+                <input type="text" id="var2" name="var2">
+              </div>
+              <div class="form-group">
+                <label for="var3">משתנה 3:</label>
+                <input type="text" id="var3" name="var3">
+              </div>
+              <div class="form-group">
+                <label for="var4">משתנה 4:</label>
+                <input type="text" id="var4" name="var4">
+              </div>
+              <div class="form-group">
+                <label for="var5">משתנה 5:</label>
+                <input type="text" id="var5" name="var5">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">
+                <i class="ri-save-line"></i>
+                שמור
+              </button>
+              <button type="button" class="btn btn-secondary" id="cancel-add">
+                <i class="ri-close-line"></i>
+                ביטול
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="table-responsive">
+          <table id="contacts-table" class="table">
+            <thead>
+              <tr>
+                <th>שם</th>
+                <th>טלפון</th>
+                <th>משתנה 1</th>
+                <th>משתנה 2</th>
+                <th>משתנה 3</th>
+                <th>משתנה 4</th>
+                <th>משתנה 5</th>
+                <th>פעולות</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="message-section" class="hidden section-container">
+      <div class="section-header">
+        <h2>ניסוח הודעה</h2>
+      </div>
+      <div class="section-content">
+        <div class="message-form">
+          <div class="cost-summary card mb-4">
+            <div class="card-body">
+              <div class="cost-details">
+                <div class="cost-item">
+                  <i class="ri-message-2-line"></i>
+                  <span>אורך ההודעה: <strong id="message-length">0</strong> תווים</span>
+                </div>
+                <div class="cost-item">
+                  <i class="ri-group-line"></i>
+                  <span>מספר נמענים: <strong id="recipients-count">0</strong></span>
+                </div>
+                <div class="cost-item">
+                  <i class="ri-money-shekel-circle-line"></i>
+                  <span>עלות משוערת: <strong id="estimated-cost">0</strong> יחידות SMS (<strong id="regular-units">0</strong> יחידות רגילות)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="message-editor card">
+            <div class="card-body">
+              <div class="form-group sender-id-group">
+                <label for="sender-id">זיהוי שולח:</label>
+                <div class="input-with-info">
+                  <input type="text" id="sender-id" class="form-control" value="">
+                  <span class="info-tooltip" data-tooltip="ניתן לבחור במספר אחר שמאושר לשליחה ע״י חברת ימות המשיח">
+                    <i class="ri-information-line"></i>
+                  </span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="message-template">תוכן ההודעה:</label>
+                <textarea id="message-template" rows="4" class="message-textarea" dir="rtl"></textarea>
+                <div class="character-counter">
+                  <span id="char-count">0</span> / 70 תווים
+                </div>
+              </div>
+
+              <div class="variables-toolbar">
+                <div class="variables-title">משתנים זמינים:</div>
+                <div class="variables-buttons">
+                  <button type="button" class="btn btn-variable" data-variable="name">
+                    <i class="ri-user-line"></i>
+                    שם הנמען
+                  </button>
+                  <button type="button" class="btn btn-variable" data-variable="var1">
+                    <i class="ri-bookmark-line"></i>
+                    משתנה 1
+                  </button>
+                  <button type="button" class="btn btn-variable" data-variable="var2">
+                    <i class="ri-bookmark-line"></i>
+                    משתנה 2
+                  </button>
+                  <button type="button" class="btn btn-variable" data-variable="var3">
+                    <i class="ri-bookmark-line"></i>
+                    משתנה 3
+                  </button>
+                  <button type="button" class="btn btn-variable" data-variable="var4">
+                    <i class="ri-bookmark-line"></i>
+                    משתנה 4
+                  </button>
+                  <button type="button" class="btn btn-variable" data-variable="var5">
+                    <i class="ri-bookmark-line"></i>
+                    משתנה 5
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions mt-4">
+            <div class="flash-message-option">
+              <label class="checkbox-label">
+                <input type="checkbox" id="flash-message">
+                הודעת פלאש
+                <span class="info-tooltip" data-tooltip="מסרון פלאש (הודעת הבזק) ישלח ללקוח ויקפוץ בטלפון במסך מלא. האפשרות יכולה לא לעבוד בטלפונים מסויימים/במפעילים מסויימים ויתכן שמנעימים מסויימים ידחו את המסרון כמסרון רגיל.">
+                  <i class="ri-information-line"></i>
+                </span>
+              </label>
+            </div>
+            <div class="form-actions-right">
+              <button id="preview-message" class="btn btn-secondary">
+                <i class="ri-eye-line"></i>
+                תצוגה מקדימה
+              </button>
+              <button id="send-all" class="btn btn-primary">
+                <i class="ri-send-plane-line"></i>
+                שלח לכל רשימת התפוצה
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="history-section" class="hidden section-container">
+      <div class="section-header">
+        <h2>דוח שליחות</h2>
+        <div class="controls">
+          <button id="refresh-history" class="btn btn-secondary">
+            <i class="ri-refresh-line"></i>
+            רענן
+          </button>
+          <button id="export-csv" class="btn btn-secondary">
+            <i class="ri-file-excel-line"></i>
+            ייצוא ל-Excel
+          </button>
+        </div>
+      </div>
+
+      <div class="section-content">
+        <div class="filters-card card mb-4">
+          <div class="card-header">
+            <h4>סינון לפי תאריכים</h4>
+          </div>
+          <div class="card-body">
+            <div class="date-filter">
+              <div class="form-group">
+                <label for="date-from">מתאריך:</label>
+                <input type="date" id="date-from" name="date-from" class="form-control">
+              </div>
+              <div class="form-group">
+                <label for="date-to">עד תאריך:</label>
+                <input type="date" id="date-to" name="date-to" class="form-control">
+              </div>
+              <button id="filter-dates" class="btn btn-primary">
+                <i class="ri-filter-line"></i>
+                סנן
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table id="history-table" class="table">
+            <thead>
+              <tr>
+                <th>תאריך/שעה</th>
+                <th>נמען</th>
+                <th>שם</th>
+                <th>תוכן הודעה</th>
+                <th>סטטוס</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
