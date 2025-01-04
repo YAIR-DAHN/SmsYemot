@@ -52,6 +52,7 @@
     <nav class="main-nav">
       <div class="nav-container container">
         <div class="nav-brand">מערכת SMS</div>
+        <div id="system-info" class="system-info"></div>
         <div class="nav-links">
           <button id="goto-contacts" class="btn btn-secondary">
             <i class="ri-contacts-book-line"></i>
@@ -91,6 +92,10 @@
               ייבוא מאקסל
               <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" class="hidden">
             </label>
+            <button id="import-from-campaigns" class="btn btn-secondary">
+              <i class="ri-database-2-line"></i>
+              ייבוא מקמפיינים
+            </button>
             <button id="export-contacts" class="btn btn-secondary">
               <i class="ri-download-2-line"></i>
               ייצוא לאקסל
@@ -191,6 +196,15 @@
                 <div class="cost-item">
                   <i class="ri-money-shekel-circle-line"></i>
                   <span>עלות משוערת: <strong id="estimated-cost">0</strong> יחידות SMS (<strong id="regular-units">0</strong> יחידות רגילות)</span>
+                </div>
+                <div class="cost-item">
+                  <i class="ri-coins-line"></i>
+                  <div class="units-wrapper">
+                    <span>יחידות זמינות: <strong id="available-units">0.0</strong></span>
+                    <button id="refresh-units" class="btn-icon" title="רענן יתרה">
+                      <i class="ri-refresh-line"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -324,6 +338,23 @@
             <tbody></tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for campaigns -->
+  <div id="campaigns-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>ייבוא מקמפיינים קיימים</h3>
+        <button type="button" class="btn-close" id="close-campaigns-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="campaigns-loading" class="text-center hidden">
+          <i class="ri-loader-4-line rotating"></i>
+          <p>טוען רשימות...</p>
+        </div>
+        <div id="campaigns-list"></div>
       </div>
     </div>
   </div>

@@ -58,10 +58,75 @@ const api = {
       })
     });
     const data = await response.json();
+    
+    // בדיקת תוקף הטוקן
+    if (data.responseStatus === "EXCEPTION" && 
+        data.message?.includes("session token is invalid")) {
+      throw new Error("TOKEN_EXPIRED");
+    }
+    
     if (data.responseStatus !== "OK") {
       throw new Error("שליחה נכשלה");
     }
     return data.messageId;
+  },
+
+  async getSession(token) {
+    const response = await fetch(`${BASE_URL}/GetSession`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    const data = await response.json();
+    
+    // בדיקת תוקף הטוקן
+    if (data.responseStatus === "EXCEPTION" && 
+        data.message?.includes("session token is invalid")) {
+      throw new Error("TOKEN_EXPIRED");
+    }
+    
+    if (data.responseStatus !== "OK") {
+      throw new Error("שגיאה בטעינת נתוני המערכת");
+    }
+    return data;
+  },
+
+  async getTemplates(token) {
+    const response = await fetch(`${BASE_URL}/GetTemplates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    const data = await response.json();
+    
+    if (data.responseStatus === "EXCEPTION" && 
+        data.message?.includes("session token is invalid")) {
+      throw new Error("TOKEN_EXPIRED");
+    }
+    
+    if (data.responseStatus !== "OK") {
+      throw new Error("שגיאה בטעינת רשימות התפוצה");
+    }
+    return data.templates;
+  },
+
+  async getTemplateEntries(token, templateId) {
+    const response = await fetch(`${BASE_URL}/GetTemplateEntries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, templateId })
+    });
+    const data = await response.json();
+    
+    if (data.responseStatus === "EXCEPTION" && 
+        data.message?.includes("session token is invalid")) {
+      throw new Error("TOKEN_EXPIRED");
+    }
+    
+    if (data.responseStatus !== "OK") {
+      throw new Error("שגיאה בטעינת אנשי הקשר");
+    }
+    return data.entries;
   }
 };
 
@@ -327,6 +392,8 @@ const messageManager = {
 
     // הסרת סרגל ההתקדמות אחרי 3 שניות
     setTimeout(() => progress.remove(), 3000);
+
+    await systemManager.refresh();
   },
 
   saveToHistory(item) {
@@ -444,77 +511,75 @@ function closeContactForm() {
   delete elements.newContactForm.dataset.editId;
 }
 
-// Initialize
+// נגדיר את contactManager לפני השימוש בו
 const contactManager = new ContactManager();
 
-function initializeApp() {
-  const token = storage.getItem('token');
-  const defaultSenderNumber = storage.getItem('defaultSenderNumber');
-  
-  if (token && defaultSenderNumber) {
-    // הצגת המסך הראשי
-    elements.loginScreen.classList.add('hidden');
-    elements.appScreen.classList.remove('hidden');
-    
-    // הגדרת מספר השולח בשדה
-    document.getElementById('sender-id').value = defaultSenderNumber;
-    
-    // טעינת הנתונים הראשונית
-    ui.renderContacts(contactManager.contacts);
-    ui.showSection('contacts');
-  } else {
-    // אם אין טוקן תקף, מציג את מסך ההתחברות
-    elements.loginScreen.classList.remove('hidden');
-    elements.appScreen.classList.add('hidden');
-    
-    // ניקוי שדות הטופס
-    elements.username.value = '';
-    elements.password.value = '';
+// נעביר את ההגדרה של SystemManager למעלה, לפני ה-DOMContentLoaded
+class SystemManager {
+  constructor() {
+    this.data = null;
+  }
+
+  async refresh() {
+    const token = storage.getItem('token');
+    if (!token) return;
+
+    try {
+      this.data = await api.getSession(token);
+      this.updateUI();
+    } catch (err) {
+      console.error('שגיאה בטעינת נתוני מערכת:', err);
+      if (err.message === "TOKEN_EXPIRED") {
+        handleLogout(true);
+      }
+    }
+  }
+
+  updateUI() {
+    if (!this.data) return;
+
+    // עדכון פרטי המערכת בראש הדף
+    const systemInfo = document.getElementById('system-info');
+    if (systemInfo) {
+      let infoHtml = '';
+      if (this.data.name) infoHtml += `<span><i class="ri-user-line"></i>${this.data.name}</span>`;
+      if (this.data.organization) infoHtml += `<span><i class="ri-building-line"></i>${this.data.organization}</span>`;
+      if (this.data.units) infoHtml += `<span><i class="ri-coins-line"></i>${parseFloat(this.data.units).toFixed(1)} יחידות</span>`;
+      systemInfo.innerHTML = infoHtml;
+    }
+
+    // עדכון כמות היחידות במסך השליחה
+    const availableUnits = document.getElementById('available-units');
+    if (availableUnits) {
+      availableUnits.textContent = parseFloat(this.data.units || 0).toFixed(1);
+    }
   }
 }
 
-// Message Cost Calculator
-const messageCost = {
-  calculateUnits(text, variables = []) {
-    // חישוב אורך ההודעה כולל משתנים
-    const estimatedLength = variables.reduce((total, variable) => {
-      return total + (variable.length || 0);
-    }, text.length);
-    
-    // חישוב מספר יחידות SMS
-    return Math.ceil(estimatedLength / 70);
-  },
+// נצירת מופע של SystemManager
+const systemManager = new SystemManager();
 
-  updateCostSummary() {
-    const text = document.getElementById('message-template').value;
-    const recipientsCount = contactManager.contacts.length;
-    const messageLength = text.length;
-    
-    // חישוב אורך משוער כולל משתנים
-    const variables = contactManager.contacts[0] ? [
-      contactManager.contacts[0].name.length,
-      contactManager.contacts[0].var1?.length || 0,
-      contactManager.contacts[0].var2?.length || 0,
-      contactManager.contacts[0].var3?.length || 0,
-      contactManager.contacts[0].var4?.length || 0,
-      contactManager.contacts[0].var5?.length || 0
-    ] : [];
-    
-    const smsUnits = this.calculateUnits(text, variables);
-    const totalUnits = smsUnits * recipientsCount;
-    const regularUnits = totalUnits * 0.1;
-    
-    document.getElementById('message-length').textContent = messageLength;
-    document.getElementById('recipients-count').textContent = recipientsCount;
-    document.getElementById('estimated-cost').textContent = totalUnits;
-    document.getElementById('regular-units').textContent = regularUnits.toFixed(1);
-    
-    // עדכון מונה תווים
-    document.getElementById('char-count').textContent = messageLength;
+// בוסיף פונקציה לטיפול בהתנתקות
+function handleLogout(showMessage = false) {
+  // מחיקת נתוני ההתחברות
+  storage.removeItem('token');
+  storage.removeItem('defaultSenderNumber');
+  
+  // הצגת מסך ההתחברות
+  elements.loginScreen.classList.remove('hidden');
+  elements.appScreen.classList.add('hidden');
+  
+  // ניקוי שדות הטופס
+  elements.username.value = '';
+  elements.password.value = '';
+
+  // הצגת הודעה אם נדרש
+  if (showMessage) {
+    alert('פג תוקף ההתחברות - אנא בצע התחברות מחדש');
   }
-};
+}
 
-// Event Listeners
+// בתוך DOMContentLoaded נעדכן את הטיפול בהתחברות
 document.addEventListener('DOMContentLoaded', () => {
   // שמירת מספר השולח המקורי
   let defaultSenderNumber = '';
@@ -530,8 +595,11 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // שמירת הטוקן ומספר השולח המקורי
       storage.setItem('token', token);
-      defaultSenderNumber = elements.username.value; // או לקבל מהשרת
+      defaultSenderNumber = elements.username.value;
       storage.setItem('defaultSenderNumber', defaultSenderNumber);
+      
+      // טעינת נתוני המערכת
+      await systemManager.refresh();
       
       // הצגת המסך הראשי
       elements.loginScreen.classList.add('hidden');
@@ -555,17 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('logout').addEventListener('click', () => {
     if (confirm('האם אתה בטוח שברצונך להתנתק?')) {
-      // מחיקת נתוני ההתחברות
-      storage.removeItem('token');
-      storage.removeItem('defaultSenderNumber');
-      
-      // הצגת מסך ההתחברות
-      elements.loginScreen.classList.remove('hidden');
-      elements.appScreen.classList.add('hidden');
-      
-      // ניקוי שדות הטופס
-      elements.username.value = '';
-      elements.password.value = '';
+      handleLogout();
     }
   });
 
@@ -719,9 +777,300 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Initialize App
+  async function initializeApp() {
+    const token = storage.getItem('token');
+    const defaultSenderNumber = storage.getItem('defaultSenderNumber');
+    
+    if (token && defaultSenderNumber) {
+      // טעינת נתוני המערכת
+      await systemManager.refresh();
+      
+      // הצגת המסך הראשי
+      elements.loginScreen.classList.add('hidden');
+      elements.appScreen.classList.remove('hidden');
+      
+      // הגדרת מספר השולח בשדה
+      document.getElementById('sender-id').value = defaultSenderNumber;
+      
+      // טעינת הנתונים הראשונית
+      ui.renderContacts(contactManager.contacts);
+      ui.showSection('contacts');
+    } else {
+      elements.loginScreen.classList.remove('hidden');
+      elements.appScreen.classList.add('hidden');
+      elements.username.value = '';
+      elements.password.value = '';
+    }
+  }
+
+  // הפעלת האתחול
   initializeApp();
 
   document.getElementById('export-contacts').addEventListener('click', () => {
     contactManager.exportToExcel();
   });
+
+  // נוסיף מאזין לכפתור הרענון
+  document.getElementById('refresh-units').addEventListener('click', () => {
+    systemManager.refresh();
+  });
+
+  // Campaign Import Handlers
+  document.getElementById('import-from-campaigns').addEventListener('click', () => {
+    campaignsManager.showCampaignsModal();
+  });
+
+  document.getElementById('close-campaigns-modal').addEventListener('click', () => {
+    document.getElementById('campaigns-modal').classList.add('hidden');
+  });
 }); 
+
+// Message Cost Calculator
+const messageCost = {
+  calculateUnits(text, variables = []) {
+    // חישוב אורך ההודעה כולל משתנים
+    const estimatedLength = variables.reduce((total, variable) => {
+      return total + (variable.length || 0);
+    }, text.length);
+    
+    // חישוב מספר יחידות SMS
+    return Math.ceil(estimatedLength / 70);
+  },
+
+  updateCostSummary() {
+    const text = document.getElementById('message-template').value;
+    const recipientsCount = contactManager.contacts.length;
+    const messageLength = text.length;
+    
+    // חישוב אורך משוער כולל משתנים
+    const variables = contactManager.contacts[0] ? [
+      contactManager.contacts[0].name.length,
+      contactManager.contacts[0].var1?.length || 0,
+      contactManager.contacts[0].var2?.length || 0,
+      contactManager.contacts[0].var3?.length || 0,
+      contactManager.contacts[0].var4?.length || 0,
+      contactManager.contacts[0].var5?.length || 0
+    ] : [];
+    
+    const smsUnits = this.calculateUnits(text, variables);
+    const totalUnits = smsUnits * recipientsCount;
+    const regularUnits = totalUnits * 0.1;
+    
+    document.getElementById('message-length').textContent = messageLength;
+    document.getElementById('recipients-count').textContent = recipientsCount;
+    document.getElementById('estimated-cost').textContent = totalUnits;
+    document.getElementById('regular-units').textContent = regularUnits.toFixed(1);
+    
+    // עדכון מונה תווים
+    document.getElementById('char-count').textContent = messageLength;
+  }
+}; 
+
+// נוסיף את הלוגיקה של הקמפיינים
+const campaignsManager = {
+  async showCampaignsModal() {
+    const modal = document.getElementById('campaigns-modal');
+    const loading = document.getElementById('campaigns-loading');
+    const list = document.getElementById('campaigns-list');
+    
+    try {
+      modal.classList.remove('hidden');
+      loading.classList.remove('hidden');
+      list.innerHTML = '';
+      
+      const token = storage.getItem('token');
+      if (!token) {
+        throw new Error('לא נמצא טוקן התחברות');
+      }
+
+      const templates = await api.getTemplates(token);
+      
+      if (!templates || !templates.length) {
+        list.innerHTML = '<div class="text-center">לא נמצאו קמפיינים</div>';
+        loading.classList.add('hidden');
+        return;
+      }
+      
+      loading.classList.add('hidden');
+      list.innerHTML = templates.map(template => `
+        <div class="campaign-item" data-id="${template.templateId}">
+          <div class="campaign-title">
+            ${template.description || 'קמפיין ללא שם'}
+            ${template.customerDefault ? ' (ברירת מחדל)' : ''}
+          </div>
+          <div class="campaign-details">
+            <div>מספר אנשי קשר: ${template.entriesCount}</div>
+            <div>מזהה שיחה: ${template.callerId || ''}</div>
+          </div>
+        </div>
+      `).join('');
+      
+      // הוספת מאזיני לחיצה לכל קמפיין
+      list.querySelectorAll('.campaign-item').forEach(item => {
+        item.addEventListener('click', () => {
+          if (confirm('האם ברצונך לייבא את אנשי הקשר מקמפיין זה?')) {
+            this.importFromCampaign(item.dataset.id);
+          }
+        });
+      });
+      
+    } catch (err) {
+      console.error('שגיאה בטעינת קמפיינים:', err);
+      if (err.message === "TOKEN_EXPIRED") {
+        handleLogout(true);
+      } else {
+        loading.classList.add('hidden');
+        list.innerHTML = `
+          <div class="error-message text-center">
+            <i class="ri-error-warning-line"></i>
+            <p>שגיאה בטעינת הקמפיינים</p>
+            <p class="text-small">${err.message}</p>
+          </div>`;
+      }
+    }
+  },
+  
+  async importFromCampaign(templateId) {
+    const modal = document.getElementById('campaigns-modal');
+    const loading = document.getElementById('campaigns-loading');
+    const list = document.getElementById('campaigns-list');
+    
+    try {
+      // הצגת טעינה
+      list.innerHTML = `
+        <div class="text-center">
+          <i class="ri-loader-4-line rotating"></i>
+          <p>מייבא אנשי קשר...</p>
+        </div>
+      `;
+      
+      const token = storage.getItem('token');
+      const entries = await api.getTemplateEntries(token, templateId);
+      
+      // מיון והסרת חסומים
+      const validEntries = entries
+        .filter(entry => !entry.blocked)
+        .sort((a, b) => a.index - b.index);
+      
+      // המרה לפורמט של המערכת שלנו
+      const importedContacts = validEntries.map(entry => ({
+        name: entry.name || '',
+        phone: entry.phone,
+        var1: entry.moreinfo || '',
+        var2: '',
+        var3: '',
+        var4: '',
+        var5: ''
+      }));
+      
+      // שאלה האם להחליף או להוסיף
+      const action = await this.showImportDialog(importedContacts.length);
+      
+      // אם המשתמש סגר את החלון בלי לבחור פעולה
+      if (!action) {
+        modal.classList.add('hidden');
+        return;
+      }
+
+      if (action === 'append') {
+        // הוספה לרשימה הקיימת
+        importedContacts.forEach(contact => {
+          contactManager.add(contact);
+        });
+      } else if (action === 'replace') {
+        // החלפת כל הרשימה
+        contactManager.contacts = [];
+        importedContacts.forEach(contact => {
+          contactManager.add(contact);
+        });
+      }
+      
+      // עדכון הטבלה
+      ui.renderContacts(contactManager.contacts);
+      
+      // סגירת המודל
+      modal.classList.add('hidden');
+      
+    } catch (err) {
+      if (err.message === "TOKEN_EXPIRED") {
+        handleLogout(true);
+      } else {
+        alert(`שגיאה בייבוא אנשי קשר: ${err.message}`);
+      }
+    }
+  },
+  
+  showImportDialog(count) {
+    return new Promise((resolve) => {
+      const currentCount = contactManager.contacts.length;
+      
+      const message = `נמצאו ${count} אנשי קשר בקמפיין.
+${currentCount ? `\nברשימה הקיימת יש ${currentCount} אנשי קשר.` : ''}
+\nכיצד ברצונך לייבא את אנשי הקשר?`;
+      
+      const dialog = document.createElement('div');
+      dialog.className = 'modal';
+      dialog.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+          <div class="modal-header">
+            <h3>אפשרויות ייבוא</h3>
+            <button type="button" class="btn-close" aria-label="סגור">×</button>
+          </div>
+          <div class="modal-body">
+            <p>${message}</p>
+            <div class="import-actions" style="display: flex; gap: 1rem; margin-top: 1rem;">
+              <button class="btn btn-secondary" data-action="append">
+                <i class="ri-add-line"></i>
+                הוסף לרשימה הקיימת
+              </button>
+              <button class="btn btn-primary" data-action="replace">
+                <i class="ri-refresh-line"></i>
+                החלף את הרשימה
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(dialog);
+      
+      // פונקציית סגירה
+      const closeDialog = () => {
+        dialog.remove();
+        resolve(null);
+      };
+
+      // יצירת מאזין ה-ESC
+      const escHandler = (e) => {
+        if (e.key === 'Escape') {
+          document.removeEventListener('keydown', escHandler);
+          closeDialog();
+        }
+      };
+      
+      // סגירה בלחיצה על X
+      dialog.querySelector('.btn-close').addEventListener('click', closeDialog);
+      
+      // סגירה בלחיצה על ESC
+      document.addEventListener('keydown', escHandler);
+      
+      // סגירה בלחיצה על הרקע
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+          document.removeEventListener('keydown', escHandler);
+          closeDialog();
+        }
+      });
+      
+      // מאזיני לחיצה על כפתורי הפעולה
+      dialog.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          document.removeEventListener('keydown', escHandler);
+          dialog.remove();
+          resolve(action);
+        });
+      });
+    });
+  }
+}; 
