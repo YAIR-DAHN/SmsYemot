@@ -1,6 +1,17 @@
 const BASE_URL = "https://www.call2all.co.il/ym/api";
 
 // Utility Functions
+function formatPhoneNumber(phone) {
+  // מסיר את ה + אם קיים
+  phone = phone.replace(/^\+/, '');
+  
+  // אם המספר מתחיל ב-972, נחליף ל-0
+  if (phone.startsWith('972')) {
+    return '0' + phone.substring(3);
+  }
+  return phone;
+}
+
 function replaceVariables(template, contact) {
   let message = template;
   const variables = {
@@ -127,6 +138,72 @@ const api = {
       throw new Error("שגיאה בטעינת אנשי הקשר");
     }
     return data.entries;
+  },
+
+  async getApprovedCallerIDs(token) {
+    const response = await fetch(`${BASE_URL}/GetApprovedCallerIDs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    const data = await response.json();
+    
+    if (data.responseStatus === "EXCEPTION" && 
+        data.message?.includes("session token is invalid")) {
+      throw new Error("TOKEN_EXPIRED");
+    }
+    
+    if (data.responseStatus !== "OK") {
+      throw new Error("שגיאה בטעינת זיהויי שולח מאושרים");
+    }
+    return data;
+  },
+
+  async sendTTS(token, params) {
+    const response = await fetch(`${BASE_URL}/SendTTS`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        ...params
+      })
+    });
+    const data = await response.json();
+    
+    if (data.responseStatus === "EXCEPTION" && 
+        data.message?.includes("session token is invalid")) {
+      throw new Error("TOKEN_EXPIRED");
+    }
+    
+    if (data.responseStatus !== "OK") {
+      throw new Error(data.message || "שליחה נכשלה");
+    }
+    return data;
+  },
+
+  async getSmsIncomingLog(token, limit, startDate = null, endDate = null) {
+    const params = { token, limit };
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+
+    const response = await fetch(`${BASE_URL}/GetSmsIncomingLog`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params)
+    });
+    
+    const data = await response.json();
+    
+    if (data.responseStatus === "EXCEPTION" && 
+        data.message?.includes("session token is invalid")) {
+      throw new Error("TOKEN_EXPIRED");
+    }
+    
+    if (data.responseStatus !== "OK") {
+      throw new Error("שגיאה בטעינת הודעות נכנסות");
+    }
+    
+    return data.rows;
   }
 };
 
@@ -271,7 +348,7 @@ const messagePreview = {
     previewContainer.innerHTML = `
       <div class="preview-header">
         <h4>תצוגה מקדימה</h4>
-        <button class="btn-close" onclick="this.closest('.message-preview').remove()">×</button>
+        <button class="btn-close" onclick="messagePreview.close()">×</button>
       </div>
       <div class="preview-navigation">
         <button class="btn btn-secondary" onclick="messageManager.previewMessage(-1)">
@@ -288,11 +365,18 @@ const messagePreview = {
     `;
     
     // מחיקת תצוגה מקדימה קודמת אם קיימת
-    const oldPreview = document.querySelector('.message-preview');
-    if (oldPreview) oldPreview.remove();
+    this.close();
     
     // הוספת התצוגה החדשה
     document.querySelector('.message-form').appendChild(previewContainer);
+  },
+
+  close() {
+    const oldPreview = document.querySelector('.message-preview');
+    if (oldPreview) {
+      oldPreview.classList.add('fade-out');
+      setTimeout(() => oldPreview.remove(), 300);
+    }
   }
 };
 
@@ -322,7 +406,7 @@ const messageManager = {
     const template = document.getElementById('message-template').value;
     const token = storage.getItem('token');
     const senderNumber = storage.getItem('senderNumber');
-    const isFlashMessage = document.getElementById('flash-message').checked;
+    const campaignType = document.querySelector('input[name="campaign-type"]:checked').value;
     
     if (!token) {
       alert('נא להתחבר מחדש');
@@ -351,55 +435,283 @@ const messageManager = {
     `;
     document.querySelector('.message-form').appendChild(progress);
 
-    const progressFill = progress.querySelector('.progress-fill');
-    const progressStatus = progress.querySelector('#progress-status');
-    
-    const total = contactManager.contacts.length;
-    let success = 0;
-    let failed = 0;
-
-    for (let i = 0; i < total; i++) {
-      const contact = contactManager.contacts[i];
-      const message = replaceVariables(template, contact);
-      
-      try {
-        const messageId = await api.sendSms(token, contact.phone, message, senderNumber, isFlashMessage);
-        success++;
-        this.saveToHistory({
-          timestamp: new Date().toISOString(),
-          recipient: contact.phone,
-          name: contact.name,
-          message: message,
-          status: 'נשלח בהצלחה',
-          messageId
-        });
-      } catch (err) {
-        failed++;
-        this.saveToHistory({
-          timestamp: new Date().toISOString(),
-          recipient: contact.phone,
-          name: contact.name,
-          message: message,
-          status: 'נכשל',
-          error: err.message
-        });
+    try {
+      if (campaignType === 'sms') {
+        await this.sendSMSCampaign(token, template, senderNumber);
+      } else {
+        await this.sendVoiceCampaign(token, template, senderNumber);
       }
-
-      const percent = ((i + 1) / total) * 100;
-      progressFill.style.width = `${percent}%`;
-      progressStatus.textContent = `נשלחו ${i + 1} מתוך ${total} (${success} הצליחו, ${failed} נכשלו)`;
+      
+      await systemManager.refresh();
+    } catch (err) {
+      if (err.message === "TOKEN_EXPIRED") {
+        handleLogout(true);
+      } else {
+        alert(err.message);
+      }
     }
 
     // הסרת סרגל ההתקדמות אחרי 3 שניות
     setTimeout(() => progress.remove(), 3000);
+  },
 
-    await systemManager.refresh();
+  async sendSMSCampaign(token, template, senderNumber) {
+    const isFlash = document.getElementById('flash-message').checked;
+    let successCount = 0;
+    let failedCount = 0;
+    const errors = [];
+    
+    // שליחה לכל איש קשר בנפרד
+    for (const contact of contactManager.contacts) {
+        try {
+            // החלפת המשתנים בהודעה
+            const finalMessage = replaceVariables(template, contact);
+            
+            // שליחת ההודעה
+            await api.sendSms(token, contact.phone, finalMessage, senderNumber, isFlash);
+            successCount++;
+            
+        } catch (err) {
+            failedCount++;
+            errors.push({
+                contact: contact,
+                error: err.message
+            });
+        }
+    }
+    
+    // שמירה בהיסטוריה
+    this.saveToHistory({
+        timestamp: new Date().toISOString(),
+        type: 'sms',
+        recipients: contactManager.contacts.length,
+        message: template,
+        status: 'נשלח בהצלחה',
+        successCount,
+        failedCount
+    });
+
+    // הצגת סיכום השליחה
+    this.showSendingSummary({
+        total: contactManager.contacts.length,
+        success: successCount,
+        failed: failedCount,
+        errors: errors,
+        isVoiceCampaign: false
+    });
+  },
+
+  async sendVoiceCampaign(token, template, senderNumber) {
+    const voiceType = document.getElementById('voice-type').value;
+    const voiceSpeed = document.getElementById('voice-speed').value;
+    const repeatTimes = document.getElementById('repeat-times').value;
+    
+    let successCount = 0;
+    let failedCount = 0;
+    const errors = [];
+    
+    // שליחה לכל איש קשר בנפרד
+    for (const contact of contactManager.contacts) {
+        try {
+            // החלפת המשתנים בהודעה
+            const finalMessage = replaceVariables(template, contact);
+            
+            const params = {
+                callerId: senderNumber,
+                ttsMessage: finalMessage,
+                phones: contact.phone,
+                ttsVoice: voiceType,
+                ttsRate: parseInt(voiceSpeed),
+                repeatFile: parseInt(repeatTimes),
+                SendMail: 1
+            };
+
+            await api.sendTTS(token, params);
+            successCount++;
+            
+        } catch (err) {
+            failedCount++;
+            errors.push({
+                contact: contact,
+                error: err.message
+            });
+        }
+    }
+    
+    // שמירה בהיסטוריה
+    this.saveToHistory({
+        timestamp: new Date().toISOString(),
+        type: 'voice',
+        recipients: contactManager.contacts.length,
+        message: template,
+        status: 'נשלח בהצלחה',
+        successCount,
+        failedCount
+    });
+
+    // הצגת סיכום השליחה
+    this.showSendingSummary({
+        total: contactManager.contacts.length,
+        success: successCount,
+        failed: failedCount,
+        errors: errors,
+        isVoiceCampaign: true
+    });
   },
 
   saveToHistory(item) {
     const history = storage.getItem('history', []);
     history.unshift(item);
     storage.setItem('history', history);
+  },
+
+  async sendMessage(contacts, messageTemplate, isVoiceCampaign = false) {
+    const token = storage.getItem('token');
+    const senderId = document.getElementById('sender-id').value;
+    const isFlash = document.getElementById('flash-message').checked;
+    
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const contact of contacts) {
+      try {
+        // החלפת המשתנים בהודעה
+        let finalMessage = messageTemplate;
+        finalMessage = finalMessage.replace(/\{שם\}/g, contact.name || '');
+        for (let i = 1; i <= 5; i++) {
+          const varValue = contact[`var${i}`] || '';
+          finalMessage = finalMessage.replace(new RegExp(`\\{משתנה${i}\\}`, 'g'), varValue);
+        }
+
+        if (isVoiceCampaign) {
+          const voiceSettings = {
+            voice: document.getElementById('voice-type').value,
+            speed: document.getElementById('voice-speed').value,
+            repeat: document.getElementById('repeat-times').value
+          };
+
+          await api.sendTTS(token, {
+            dest: contact.phone,
+            message: finalMessage,
+            ...voiceSettings
+          });
+        } else {
+          await api.sendSMS(token, {
+            dest: contact.phone,
+            message: finalMessage,
+            sender: senderId,
+            flash: isFlash ? 1 : 0
+          });
+        }
+
+        successCount++;
+        
+        // הוספה להיסטוריה
+        historyManager.addToHistory({
+          timestamp: new Date(),
+          type: isVoiceCampaign ? 'voice' : 'sms',
+          recipient: contact.phone,
+          name: contact.name,
+          message: finalMessage,
+          status: 'נשלח בהצלחה'
+        });
+
+      } catch (err) {
+        failCount++;
+        errors.push({ contact, error: err.message });
+        
+        historyManager.addToHistory({
+          timestamp: new Date(),
+          type: isVoiceCampaign ? 'voice' : 'sms',
+          recipient: contact.phone,
+          name: contact.name,
+          message: messageTemplate,
+          status: 'שליחה נכשלה'
+        });
+      }
+    }
+
+    // הצגת סיכום השליחה
+    this.showSendingSummary({
+      total: contacts.length,
+      success: successCount,
+      failed: failCount,
+      errors,
+      isVoiceCampaign
+    });
+  },
+
+  showSendingSummary({ total, success, failed, errors, isVoiceCampaign }) {
+    const modalHtml = `
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>סיכום שליחה</h3>
+          <button type="button" class="btn-close" id="close-summary-modal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="summary-stats">
+            <div class="stat-item">
+              <i class="ri-${isVoiceCampaign ? 'phone' : 'message-2'}-line"></i>
+              <div class="stat-details">
+                <span class="stat-label">סה"כ נשלחו:</span>
+                <span class="stat-value">${total}</span>
+              </div>
+            </div>
+            <div class="stat-item success">
+              <i class="ri-check-double-line"></i>
+              <div class="stat-details">
+                <span class="stat-label">נשלחו בהצלחה:</span>
+                <span class="stat-value">${success}</span>
+              </div>
+            </div>
+            ${failed > 0 ? `
+              <div class="stat-item error">
+                <i class="ri-error-warning-line"></i>
+                <div class="stat-details">
+                  <span class="stat-label">נכשלו:</span>
+                  <span class="stat-value">${failed}</span>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+          
+          ${failed > 0 ? `
+            <div class="errors-list">
+              <h4>פירוט שגיאות:</h4>
+              <ul>
+                ${errors.map(err => `
+                  <li>
+                    <strong>${err.contact.name} (${err.contact.phone}):</strong>
+                    ${err.error}
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = modalHtml;
+    document.body.appendChild(modal);
+
+    // הצגת המודל
+    setTimeout(() => modal.classList.remove('hidden'), 10);
+
+    // סגירת המודל
+    const closeBtn = modal.querySelector('#close-summary-modal');
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      setTimeout(() => modal.remove(), 300);
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
   }
 };
 
@@ -427,11 +739,12 @@ const historyManager = {
       return;
     }
 
-    const headers = ['תאריך/שעה', 'נמען', 'שם', 'תוכן הודעה', 'סטטוס'];
+    const headers = ['תאריך/שעה', 'סוג קמפיין', 'נמען', 'שם', 'תוכן הודעה', 'סטטוס'];
     const rows = history.map(item => [
-      item.timestamp,
-      item.recipient,
-      item.name,
+      new Date(item.timestamp).toLocaleString(),
+      item.type === 'voice' ? 'קמפיין קולי' : 'SMS',
+      item.recipient || `${item.recipients} נמענים`,
+      item.name || '-',
       item.message,
       item.status
     ]);
@@ -446,6 +759,12 @@ const historyManager = {
     link.href = URL.createObjectURL(blob);
     link.download = 'history.csv';
     link.click();
+  },
+
+  addToHistory(item) {
+    const history = storage.getItem('history', []);
+    history.unshift(item);
+    storage.setItem('history', history);
   }
 };
 
@@ -455,7 +774,13 @@ const ui = {
     Object.values(elements.sections).forEach(section => 
       section.classList.add('hidden')
     );
-    elements.sections[sectionName]?.classList.remove('hidden');
+    document.getElementById('incoming-section')?.classList.add('hidden');
+    
+    if (sectionName === 'incoming') {
+      document.getElementById('incoming-section')?.classList.remove('hidden');
+    } else {
+      elements.sections[sectionName]?.classList.remove('hidden');
+    }
   },
 
   renderContacts(contacts) {
@@ -494,10 +819,20 @@ const ui = {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${new Date(item.timestamp).toLocaleString()}</td>
-        <td>${item.recipient}</td>
-        <td>${item.name}</td>
+        <td>
+          <span class="campaign-type-badge ${item.type === 'voice' ? 'voice' : 'sms'}">
+            <i class="ri-${item.type === 'voice' ? 'phone' : 'message-2'}-line"></i>
+            ${item.type === 'voice' ? 'קמפיין קולי' : 'SMS'}
+          </span>
+        </td>
+        <td>${item.recipient || `${item.recipients} נמענים`}</td>
+        <td>${item.name || '-'}</td>
         <td>${item.message}</td>
-        <td>${item.status}</td>
+        <td>
+          <span class="status-badge ${item.status === 'נשלח בהצלחה' ? 'success' : 'error'}">
+            ${item.status}
+          </span>
+        </td>
       `;
       tbody.appendChild(tr);
     });
@@ -518,6 +853,7 @@ const contactManager = new ContactManager();
 class SystemManager {
   constructor() {
     this.data = null;
+    this.callerIDs = null;
   }
 
   async refresh() {
@@ -525,7 +861,12 @@ class SystemManager {
     if (!token) return;
 
     try {
+      // קבלת נתוני המערכת
       this.data = await api.getSession(token);
+      
+      // קבלת זיהויי שולח מאושרים
+      this.callerIDs = await api.getApprovedCallerIDs(token);
+      
       this.updateUI();
     } catch (err) {
       console.error('שגיאה בטעינת נתוני מערכת:', err);
@@ -552,6 +893,47 @@ class SystemManager {
     const availableUnits = document.getElementById('available-units');
     if (availableUnits) {
       availableUnits.textContent = parseFloat(this.data.units || 0).toFixed(1);
+    }
+
+    // עדכון רשימת זיהויי השולח
+    const senderIdSelect = document.getElementById('sender-id');
+    if (senderIdSelect && this.callerIDs) {
+      const currentValue = storage.getItem('senderNumber');
+      
+      // יצירת רשימת האפשרויות
+      const options = [];
+      
+      // הוספת זיהוי SMS קבוע אם קיים
+      if (this.callerIDs.sms.smsId) {
+        options.push(this.callerIDs.sms.smsId);
+      }
+      
+      // הוספת מספר ראשי
+      if (this.callerIDs.call.mainDid) {
+        options.push(this.callerIDs.call.mainDid);
+      }
+      
+      // הוספת מספרים משניים
+      if (this.callerIDs.call.secondaryDids) {
+        options.push(...this.callerIDs.call.secondaryDids);
+      }
+      
+      // הוספת זיהויים חיצוניים
+      if (this.callerIDs.call.callerIds) {
+        options.push(...this.callerIDs.call.callerIds);
+      }
+      
+      // יצירת אלמנט select
+      senderIdSelect.innerHTML = options.map(id => `
+        <option value="${id}" ${id === currentValue ? 'selected' : ''}>
+          ${formatPhoneNumber(id)}
+        </option>
+      `).join('');
+      
+      // הוספת מאזין לשינויים
+      senderIdSelect.addEventListener('change', (e) => {
+        storage.setItem('senderNumber', e.target.value);
+      });
     }
   }
 }
@@ -595,8 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // שמירת הטוקן ומספר השולח המקורי
       storage.setItem('token', token);
-      defaultSenderNumber = elements.username.value;
-      storage.setItem('defaultSenderNumber', defaultSenderNumber);
+      storage.setItem('senderNumber', elements.username.value);
       
       // טעינת נתוני המערכת
       await systemManager.refresh();
@@ -604,9 +985,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // הצגת המסך הראשי
       elements.loginScreen.classList.add('hidden');
       elements.appScreen.classList.remove('hidden');
-      
-      // הגדרת מספר השולח בשדה
-      document.getElementById('sender-id').value = defaultSenderNumber;
       
       // טעינת הנתונים הראשונית
       ui.renderContacts(contactManager.contacts);
@@ -781,20 +1159,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = storage.getItem('token');
     const defaultSenderNumber = storage.getItem('defaultSenderNumber');
     
-    if (token && defaultSenderNumber) {
-      // טעינת נתוני המערכת
-      await systemManager.refresh();
-      
-      // הצגת המסך הראשי
-      elements.loginScreen.classList.add('hidden');
-      elements.appScreen.classList.remove('hidden');
-      
-      // הגדרת מספר השולח בשדה
-      document.getElementById('sender-id').value = defaultSenderNumber;
-      
-      // טעינת הנתונים הראשונית
-      ui.renderContacts(contactManager.contacts);
-      ui.showSection('contacts');
+    if (token) {
+      try {
+        // בדיקת תקינות הטוקן
+        await api.getSession(token);
+        
+        // אם הגענו לכאן, הטוקן תקין
+        elements.loginScreen.classList.add('hidden');
+        elements.appScreen.classList.remove('hidden');
+        
+        // הגדרת מספר השולח בשדה
+        document.getElementById('sender-id').value = defaultSenderNumber;
+        
+        // טעינת נתוני המערכת
+        await systemManager.refresh();
+        
+        // טעינת הנתונים הראשונית
+        ui.renderContacts(contactManager.contacts);
+        ui.showSection('contacts');
+      } catch (err) {
+        if (err.message === "TOKEN_EXPIRED") {
+          // מחיקת הטוקן הלא תקף
+          storage.removeItem('token');
+          storage.removeItem('defaultSenderNumber');
+          handleLogout(true);
+        } else {
+          console.error('שגיאה באתחול:', err);
+          handleLogout();
+        }
+      }
     } else {
       elements.loginScreen.classList.remove('hidden');
       elements.appScreen.classList.add('hidden');
@@ -823,24 +1216,172 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-campaigns-modal').addEventListener('click', () => {
     document.getElementById('campaigns-modal').classList.add('hidden');
   });
+
+  // Campaign Type Handlers
+  document.querySelectorAll('input[name="campaign-type"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const voiceSettings = document.getElementById('voice-settings');
+      if (e.target.value === 'voice') {
+        voiceSettings.classList.remove('hidden');
+      } else {
+        voiceSettings.classList.add('hidden');
+      }
+    });
+  });
+
+  // Voice Speed Handler
+  document.getElementById('voice-speed').addEventListener('input', (e) => {
+    const value = e.target.value;
+    const text = value == 0 ? 'רגיל (0)' : 
+                value > 0 ? `מהיר (${value})` : 
+                `איטי (${value})`;
+    document.getElementById('speed-value').textContent = text;
+  });
+
+  // Incoming Messages Manager
+  const incomingManager = {
+    async loadMessages() {
+      const token = storage.getItem('token');
+      if (!token) return;
+
+      const limit = document.getElementById('messages-limit').value;
+      const dateFrom = document.getElementById('incoming-date-from').value;
+      const dateTo = document.getElementById('incoming-date-to').value;
+
+      try {
+        const messages = await api.getSmsIncomingLog(token, limit, dateFrom, dateTo);
+        this.renderMessages(messages || []);
+      } catch (err) {
+        if (err.message === "TOKEN_EXPIRED") {
+          handleLogout(true);
+        } else {
+          alert(err.message);
+        }
+      }
+    },
+
+    renderMessages(messages) {
+      const tbody = document.querySelector('#incoming-table tbody');
+      tbody.innerHTML = '';
+
+      if (!messages || messages.length === 0) {
+        const noMessagesDiv = document.createElement('div');
+        noMessagesDiv.className = 'no-messages';
+        noMessagesDiv.innerHTML = `
+          <div class="no-messages-content">
+            <i class="ri-mail-close-line"></i>
+            <p>לא נמצאו הודעות נכנסות במערכת</p>
+            <p>ייתכן והמערכת שלכם אינה יכולה לקבל הודעות SMS, לפרטים נוספים יש לברר מול שירות הלקוחות של חברת ימות המשיח</p>
+          </div>
+        `;
+        tbody.appendChild(noMessagesDiv);
+        return;
+      }
+
+      messages.forEach(msg => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${msg.server_date}</td>
+          <td>${formatPhoneNumber(msg.phone.toString())}</td>
+          <td>${formatPhoneNumber(msg.dest.toString())}</td>
+          <td>${msg.message}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  };
+
+  // Incoming Messages Handlers
+  document.getElementById('goto-incoming')?.addEventListener('click', () => {
+    ui.showSection('incoming');
+    incomingManager.loadMessages();
+  });
+
+  document.getElementById('refresh-incoming')?.addEventListener('click', () => {
+    incomingManager.loadMessages();
+  });
+
+  document.getElementById('apply-incoming-filters')?.addEventListener('click', () => {
+    incomingManager.loadMessages();
+  });
+
+  // Contact Modal Handlers
+  const contactModal = document.getElementById('contact-modal');
+  const showContactBtn = document.getElementById('show-contact');
+  const closeContactBtn = document.getElementById('close-contact-modal');
+
+  showContactBtn?.addEventListener('click', () => {
+    contactModal?.classList.remove('hidden');
+  });
+
+  closeContactBtn?.addEventListener('click', () => {
+    contactModal?.classList.add('hidden');
+  });
+
+  // סגירת המודל בלחיצה על הרקע
+  contactModal?.addEventListener('click', (e) => {
+    if (e.target === contactModal) {
+      contactModal.classList.add('hidden');
+    }
+  });
+
+  // סגירת המודל בלחיצה על ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !contactModal?.classList.contains('hidden')) {
+      contactModal?.classList.add('hidden');
+    }
+  });
+
+  // Mobile Menu Handler
+  const menuToggle = document.createElement('button');
+  menuToggle.id = 'menu-toggle';
+  menuToggle.className = 'menu-toggle';
+  menuToggle.innerHTML = '<i class="ri-menu-line"></i>';
+
+  // הוספת כפתור ההמבורגר לתוך main-hed
+  const mainHed = document.querySelector('.main-hed');
+  const navLinks = document.querySelector('.nav-links');
+  mainHed.appendChild(menuToggle);
+
+  menuToggle.addEventListener('click', () => {
+    navLinks.classList.toggle('show');
+    const icon = menuToggle.querySelector('i');
+    icon.className = navLinks.classList.contains('show') ? 
+        'ri-close-line' : 'ri-menu-line';
+  });
+
+  // סגירת התפריט בלחיצה על קישור
+  navLinks.querySelectorAll('button').forEach(button => {
+    button.addEventListener('click', () => {
+      navLinks.classList.remove('show');
+      menuToggle.querySelector('i').className = 'ri-menu-line';
+    });
+  });
 }); 
 
 // Message Cost Calculator
 const messageCost = {
-  calculateUnits(text, variables = []) {
-    // חישוב אורך ההודעה כולל משתנים
-    const estimatedLength = variables.reduce((total, variable) => {
-      return total + (variable.length || 0);
-    }, text.length);
-    
-    // חישוב מספר יחידות SMS
-    return Math.ceil(estimatedLength / 70);
+  calculateUnits(text, variables = [], isVoiceCampaign = false) {
+    if (isVoiceCampaign) {
+      // חישוב יחידות לקמפיין קולי - יחידה לדקה
+      const wordsPerMinute = 150; // מהירות דיבור ממוצעת
+      const estimatedWords = text.split(/\s+/).length;
+      const estimatedMinutes = Math.ceil(estimatedWords / wordsPerMinute);
+      return estimatedMinutes;
+    } else {
+      // חישוב יחידות SMS
+      const estimatedLength = variables.reduce((total, variable) => {
+        return total + (variable.length || 0);
+      }, text.length);
+      return Math.ceil(estimatedLength / 70);
+    }
   },
 
   updateCostSummary() {
     const text = document.getElementById('message-template').value;
     const recipientsCount = contactManager.contacts.length;
     const messageLength = text.length;
+    const isVoiceCampaign = document.querySelector('input[name="campaign-type"]:checked').value === 'voice';
     
     // חישוב אורך משוער כולל משתנים
     const variables = contactManager.contacts[0] ? [
@@ -852,14 +1393,20 @@ const messageCost = {
       contactManager.contacts[0].var5?.length || 0
     ] : [];
     
-    const smsUnits = this.calculateUnits(text, variables);
-    const totalUnits = smsUnits * recipientsCount;
-    const regularUnits = totalUnits * 0.1;
+    const unitsPerRecipient = this.calculateUnits(text, variables, isVoiceCampaign);
+    const totalUnits = unitsPerRecipient * recipientsCount;
     
+    // עדכון הטקסט בהתאם לסוג הקמפיין
     document.getElementById('message-length').textContent = messageLength;
     document.getElementById('recipients-count').textContent = recipientsCount;
     document.getElementById('estimated-cost').textContent = totalUnits;
-    document.getElementById('regular-units').textContent = regularUnits.toFixed(1);
+    
+    const costSummaryText = document.querySelector('.cost-item:nth-child(3) span');
+    if (isVoiceCampaign) {
+      costSummaryText.innerHTML = `עלות משוערת: <strong id="estimated-cost">${totalUnits}</strong> יחידות רגילות`;
+    } else {
+      costSummaryText.innerHTML = `עלות משוערת: <strong id="estimated-cost">${totalUnits}</strong> יחידות SMS (<strong id="regular-units">${(totalUnits * 0.1).toFixed(1)}</strong> יחידות רגילות)`;
+    }
     
     // עדכון מונה תווים
     document.getElementById('char-count').textContent = messageLength;
@@ -1074,3 +1621,36 @@ ${currentCount ? `\nברשימה הקיימת יש ${currentCount} אנשי קש
     });
   }
 }; 
+
+// עדכון פונקציית השליחה
+async function sendMessage(contact, message, campaignType = 'sms') {
+  const token = storage.getItem('token');
+  if (!token) throw new Error('לא נמצא טוקן תקף');
+
+  // החלפת המשתנים בהודעה
+  let finalMessage = message;
+  finalMessage = finalMessage.replace(/\{שם\}/g, contact.name || '');
+  finalMessage = finalMessage.replace(/\{משתנה1\}/g, contact.var1 || '');
+  finalMessage = finalMessage.replace(/\{משתנה2\}/g, contact.var2 || '');
+  finalMessage = finalMessage.replace(/\{משתנה3\}/g, contact.var3 || '');
+  finalMessage = finalMessage.replace(/\{משתנה4\}/g, contact.var4 || '');
+  finalMessage = finalMessage.replace(/\{משתנה5\}/g, contact.var5 || '');
+
+  try {
+    if (campaignType === 'voice') {
+      // ... קוד קיים לשליחת הודעה קולית
+    } else {
+      const params = {
+        message: finalMessage,
+        senderId: document.getElementById('sender-id').value,
+        dest: contact.phone,
+        flash: document.getElementById('flash-message').checked
+      };
+      await api.sendSMS(token, params);
+    }
+    return true;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
+} 

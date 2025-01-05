@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>מערכת שליחת SMS - Vanilla JS</title>
+  <title>קמפיין חכם - מערכת ניהול קמפיינים מתקדמת</title>
+  <meta name="description" content="מערכת חכמה לניהול והפצת קמפיינים בהתאמה אישית. שליחת SMS והודעות קוליות מותאמות לכל נמען, ניהול אנשי קשר, מעקב אחר תגובות ועוד." />
+  <meta property="og:title" content="קמפיין חכם - מערכת ניהול קמפיינים מתקדמת" />
+  <meta property="og:description" content="מערכת חכמה לניהול והפצת קמפיינים בהתאמה אישית. שליחת SMS והודעות קוליות מותאמות לכל נמען, ניהול אנשי קשר, מעקב אחר תגובות ועוד." />
+  <meta property="og:image" content="./assets/Logo.png" />
+  <link rel="icon" type="image/png" href="./assets/Logo.png">
   <link rel="stylesheet" href="./styles.css">
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,20 +20,25 @@
       <div class="welcome-section">
         <h2>ברוכים הבאים</h2>
         <p class="welcome-text">
-          ברוכים הבאים למערכת הפצת SMS מותאמת אישית, דרך מערכת זו תוכלו לשלוח SMS לרשימת תפוצה תוך התאמת הודעה אישית לכל נמען.
+          ברוכים הבאים למערכת הפצת SMS והודעות TTS מותאמת אישית, דרך מערכת זו תוכלו לשלוח SMS והודעות TTS לרשימת תפוצה תוך התאמת הודעה אישית לכל נמען.
         </p>
         <p class="provider-info">
           שליחת ההודעות מתבצעת על ידי 
           <a href="https://www.yemot.co.il/" target="_blank" rel="noopener">
             חברת ימות המשיח - פתרונות תקשורת
           </a>
-          יש להכניס את שם המשתמש והסיסמה של המערכת שלכם בימות המשיח.
+          יש להכניס את מספר המערכת והסיסמה של המערכת שלכם בימות המשיח.
         </p>
+      </div>
+
+      <div class="data-privacy-notice">
+        <i class="ri-shield-check-line"></i>
+        <p>כל הפרטים נשמרים ע"ג מחשב הלקוח ואינם נשלחים לשרת</p>
       </div>
 
       <form class="login-form">
         <div class="form-group">
-          <label for="username">שם משתמש:</label>
+          <label for="username">מספר מערכת:</label>
           <input type="text" id="username" required>
         </div>
         <div class="form-group">
@@ -51,7 +61,12 @@
   <div id="app-screen" class="hidden">
     <nav class="main-nav">
       <div class="nav-container container">
-        <div class="nav-brand">מערכת SMS</div>
+        <div class="main-hed">
+        <div class="nav-brand">
+          <img src="./assets/Logo.png" alt="קמפיין חכם" class="brand-logo">
+          <span>קמפיין חכם</span>
+        </div>
+      </div>
         <div id="system-info" class="system-info"></div>
         <div class="nav-links">
           <button id="goto-contacts" class="btn btn-secondary">
@@ -66,11 +81,16 @@
             <i class="ri-history-line"></i>
             דוח שליחות
           </button>
+          <button id="goto-incoming" class="btn btn-secondary">
+            <i class="ri-message-3-line"></i>
+            הודעות נכנסות
+          </button>
           <button id="logout" class="btn btn-secondary">
             <i class="ri-logout-box-r-line"></i>
             התנתק
           </button>
         </div>
+      
       </div>
     </nav>
 
@@ -212,13 +232,63 @@
 
           <div class="message-editor card">
             <div class="card-body">
+              <div class="form-group">
+                <label>סוג קמפיין:</label>
+                <div class="campaign-type-selector">
+                  <label class="radio-label">
+                    <input type="radio" name="campaign-type" value="sms" checked>
+                    <span><i class="ri-message-2-line"></i> קמפיין SMS</span>
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="campaign-type" value="voice">
+                    <span><i class="ri-phone-line"></i> קמפיין קולי</span>
+                  </label>
+                </div>
+              </div>
+
+              <div id="voice-settings" class="hidden">
+                <div class="form-group">
+                  <label for="voice-type">
+                    <i class="ri-user-voice-line"></i>
+                    בחירת קול:
+                  </label>
+                  <select id="voice-type" class="form-control">
+                    <option value="Elik_2100">אליק - קול גברי (ברירת מחדל)</option>
+                    <option value="Jacob">יעקב - קול גברי</option>
+                    <option value="Sivan">סיוון - קול נשי</option>
+                    <option value="Osnat">אסנת - קול נשי</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="voice-speed">
+                    <i class="ri-speed-line"></i>
+                    מהירות דיבור:
+                  </label>
+                  <div class="speed-control">
+                    <input type="range" id="voice-speed" min="-10" max="10" value="0" class="form-control">
+                    <span id="speed-value">רגיל (0)</span>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="repeat-times">
+                    <i class="ri-repeat-line"></i>
+                    מספר חזרות:
+                  </label>
+                  <input type="number" id="repeat-times" min="1" max="5" value="2" class="form-control">
+                </div>
+              </div>
+
               <div class="form-group sender-id-group">
                 <label for="sender-id">זיהוי שולח:</label>
                 <div class="input-with-info">
-                  <input type="text" id="sender-id" class="form-control" value="">
                   <span class="info-tooltip" data-tooltip="ניתן לבחור במספר אחר שמאושר לשליחה ע״י חברת ימות המשיח">
                     <i class="ri-information-line"></i>
                   </span>
+                  <select id="sender-id" class="form-control">
+                    <!-- האפשרויות יתווספו דינמית -->
+                  </select>
                 </div>
               </div>
               <div class="form-group">
@@ -329,10 +399,77 @@
             <thead>
               <tr>
                 <th>תאריך/שעה</th>
+                <th>סוג קמפיין</th>
                 <th>נמען</th>
                 <th>שם</th>
                 <th>תוכן הודעה</th>
                 <th>סטטוס</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="incoming-section" class="hidden section-container">
+      <div class="section-header">
+        <h2>הודעות SMS נכנסות</h2>
+        <div class="controls">
+          <button id="refresh-incoming" class="btn btn-secondary">
+            <i class="ri-refresh-line"></i>
+            רענן
+          </button>
+        </div>
+      </div>
+
+      <div class="section-content">
+        <div class="info-banner">
+          <i class="ri-information-line"></i>
+          <span>מוצגות כל ההודעות שהתקבלו במערכת, כולל הודעות שלא נשלחו כמענה להודעות שנשלחו מהאתר</span>
+        </div>
+
+        <div class="filters-card card mb-4">
+          <div class="card-header">
+            <h4>סינון</h4>
+          </div>
+          <div class="card-body">
+            <div class="filters-grid">
+              <div class="form-group">
+                <label for="incoming-date-from">מתאריך:</label>
+                <input type="date" id="incoming-date-from" class="form-control">
+              </div>
+              <div class="form-group">
+                <label for="incoming-date-to">עד תאריך:</label>
+                <input type="date" id="incoming-date-to" class="form-control">
+              </div>
+              <div class="form-group">
+                <label for="messages-limit">כמות הודעות להצגה:</label>
+                <select id="messages-limit" class="form-control">
+                  <option value="50">50 הודעות אחרונות</option>
+                  <option value="100">100 הודעות אחרונות</option>
+                  <option value="200">200 הודעות אחרונות</option>
+                  <option value="500">500 הודעות אחרונות</option>
+                </select>
+              </div>
+              <div class="form-actions">
+                <button id="apply-incoming-filters" class="btn btn-primary">
+                  <i class="ri-filter-line"></i>
+                  הפעל סינון
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table id="incoming-table" class="table">
+            <thead>
+              <tr>
+                <th>תאריך ושעה</th>
+                <th>מאת</th>
+                <th>אל</th>
+                <th>תוכן ההודעה</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -355,6 +492,45 @@
           <p>טוען רשימות...</p>
         </div>
         <div id="campaigns-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="developer-info">
+        מערכת זו נבנתה ע"י 
+        <button class="btn-link" id="show-contact">y.d. systems</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- מודל פרטי יצירת קשר -->
+  <div id="contact-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>יצירת קשר</h3>
+        <button type="button" class="btn-close" id="close-contact-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="contact-intro">יש לכם הערות/הארות או רעיונות לשיפור? אשמח לשמוע מכם!</p>
+        <div class="contact-methods">
+          <a href="tel:0583730000" class="contact-method">
+            <i class="ri-phone-line"></i>
+            <span>טלפון:</span>
+            058-373-0000
+          </a>
+          <a href="https://wa.me/972583730000" target="_blank" rel="noopener" class="contact-method">
+            <i class="ri-whatsapp-line"></i>
+            <span>וואטסאפ:</span>
+            058-373-0000
+          </a>
+          <a href="mailto:yairdahn@gmail.com" class="contact-method">
+            <i class="ri-mail-line"></i>
+            <span>מייל:</span>
+            yairdahn@gmail.com
+          </a>
+        </div>
       </div>
     </div>
   </div>
