@@ -57,29 +57,43 @@ const api = {
   },
 
   async sendSms(token, phone, message, from, isFlash = false) {
-    const response = await fetch(`${BASE_URL}/SendSms`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        token, 
-        phones: phone, 
-        message, 
-        from,
-        sendFlashMessage: isFlash ? 1 : 0 
-      })
-    });
-    const data = await response.json();
-    
-    // בדיקת תוקף הטוקן
-    if (data.responseStatus === "EXCEPTION" && 
-        data.message?.includes("session token is invalid")) {
-      throw new Error("TOKEN_EXPIRED");
+    try {
+        const response = await fetch(`${BASE_URL}/SendSms`, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({ 
+                token, 
+                phones: formatPhoneNumber(phone), // פורמט מספר הטלפון
+                message, 
+                from,
+                sendFlashMessage: isFlash ? 1 : 0 
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // בדיקת תוקף הטוקן
+        if (data.responseStatus === "EXCEPTION" && 
+            data.message?.includes("session token is invalid")) {
+            throw new Error("TOKEN_EXPIRED");
+        }
+        
+        if (data.responseStatus !== "OK") {
+            throw new Error(data.message || "שליחה נכשלה");
+        }
+
+        return data.messageId;
+    } catch (error) {
+        console.error('Error sending SMS:', error);
+        throw error;
     }
-    
-    if (data.responseStatus !== "OK") {
-      throw new Error("שליחה נכשלה");
-    }
-    return data.messageId;
   },
 
   async getSession(token) {
@@ -464,13 +478,9 @@ const messageManager = {
     // שליחה לכל איש קשר בנפרד
     for (const contact of contactManager.contacts) {
         try {
-            // החלפת המשתנים בהודעה
             const finalMessage = replaceVariables(template, contact);
-            
-            // שליחת ההודעה
             await api.sendSms(token, contact.phone, finalMessage, senderNumber, isFlash);
             successCount++;
-            
         } catch (err) {
             failedCount++;
             errors.push({
@@ -513,7 +523,6 @@ const messageManager = {
     // שליחה לכל איש קשר בנפרד
     for (const contact of contactManager.contacts) {
         try {
-            // החלפת המשתנים בהודעה
             const finalMessage = replaceVariables(template, contact);
             
             const params = {
