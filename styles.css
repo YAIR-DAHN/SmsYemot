@@ -131,30 +131,29 @@ body {
 }
 
 .nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0.5rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  position: relative;
+  padding: 1rem;
+  width: 100%;
+}
+
+.main-hed {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: var(--primary-color);
-  margin-right: 0;
+  gap: 0.5rem;
 }
 
 .brand-logo {
-  width: 2.5rem;
-  height: 2.5rem;
-  object-fit: contain;
+  width: 32px;
+  height: 32px;
 }
 
 .nav-links {
@@ -283,23 +282,52 @@ tr:hover td {
 
   /* ניווט */
   .nav-container {
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1rem 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .main-hed {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0;
+  }
+
+  .menu-toggle {
+    display: block;
+    order: 2;
+  }
+
+  .nav-brand {
+    order: 1;
+  }
+
+  .system-info {
+    width: 100%;
+    order: 3;
+    margin-top: 1rem;
+    justify-content: center;
   }
 
   .nav-links {
-    flex-wrap: wrap;
-    justify-content: center;
+    display: none;
+    width: 100%;
+    order: 4;
+  }
+
+  .nav-links.show {
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 0.5rem;
+    margin-top: 1rem;
   }
 
   .nav-links button {
-    width: calc(50% - 0.5rem); /* 2 כפתורים בשורה */
-    min-width: unset;
+    width: 100%;
+    justify-content: center;
   }
 
-  /* כותרות סקציות */
+  /* תותרות סקציות */
   .section-header {
     flex-direction: column;
     gap: 1rem;
@@ -1045,7 +1073,7 @@ tr:hover td {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1060,12 +1088,11 @@ tr:hover td {
 }
 
 .modal-content {
-  background: var(--white);
-  border-radius: 0.5rem;
-  padding: 1.5rem;
-  max-width: 500px;
+  background-color: var(--background-light);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
   width: 90%;
-  max-height: 90vh;
+  max-width: 500px;
   overflow-y: auto;
 }
 
@@ -1081,6 +1108,9 @@ tr:hover td {
   text-align: center;
   width: 100%;
   margin: 0;
+  font-size: var(--text-xl);
+  color: var(--text-color);
+  margin-bottom: var(--spacing-lg);
 }
 
 .modal-header .btn-close {
@@ -1761,7 +1791,7 @@ body {
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0.5rem;
-  transition: transform 0.3s ease;
+  margin-right: auto;
 }
 
 .menu-toggle:hover {
@@ -1770,87 +1800,49 @@ body {
 
 @media (max-width: 768px) {
   .nav-container {
-    justify-content: flex-start;
-    padding: 0.5rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .main-hed {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0;
   }
 
   .menu-toggle {
     display: block;
+    order: 2;
   }
 
   .nav-brand {
-    margin-right: 0;
+    order: 1;
   }
 
   .system-info {
     width: 100%;
-    margin: 0.5rem 0;
+    order: 3;
+    margin-top: 1rem;
     justify-content: center;
-    padding: 0.5rem;
-    border-top: 1px solid var(--border-color);
-    border-bottom: 1px solid var(--border-color);
-    order: 2;
   }
 
   .nav-links {
     display: none;
     width: 100%;
-    order: 3;
+    order: 4;
   }
 
   .nav-links.show {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.5rem;
-    padding: 0.5rem;
+    margin-top: 1rem;
   }
 
   .nav-links button {
     width: 100%;
-    justify-content: flex-start;
-    padding: 0.75rem 1rem;
-  }
-
-  .nav-links button i {
-    margin-left: 0.75rem;
-  }
-
-  /* שיפור המרווחים בכל המסך */
-  .section-container {
-    margin: 1rem 0;
-    border-radius: 0.5rem;
-  }
-
-  .section-content {
-    padding: 1rem;
-  }
-
-  /* התאמת גודל טקסט */
-  body {
-    font-size: 16px;
-  }
-
-  /* שיפור נראות טפסים */
-  .form-group input,
-  .form-group textarea,
-  .form-group select {
-    padding: 0.75rem;
-    font-size: 16px; /* מניעת זום אוטומטי באייפון */
-  }
-
-  /* שיפור נראות כפתורים */
-  .btn {
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-    height: auto;
-    min-height: 44px; /* גודל מינימלי לנגישות */
-  }
-
-  /* שיפור מודלים */
-  .modal-content {
-    width: 100%;
-    margin: 0.5rem;
-    max-height: 85vh;
+    justify-content: center;
   }
 } 
 
@@ -1926,4 +1918,249 @@ body {
 
 .errors-list li:last-child {
   border-bottom: none;
+} 
+
+/* Modal styling */
+.modal {
+  background: linear-gradient(rgba(17, 24, 39, 0.7), rgba(17, 24, 39, 0.8));
+  backdrop-filter: blur(8px);
+}
+
+.modal-content {
+  margin: 20rem;  /* רווח מסביב */
+  width: calc(100% - 4rem);  /* הרוחב פחות הרווחים */
+  max-width: 600px;
+  background: linear-gradient(145deg, #ffffff, #f3f4f6);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border-radius: 20px;
+  padding: 2rem;
+  width: 95%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Form Header */
+.modal-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.modal-header h2 {
+  color: var(--text-color);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.btn-close {
+  position: absolute;
+  top: -1rem;
+  left: -1rem;
+  background: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-close:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Form Layout */
+.contact-form {
+  margin: 1%;
+  padding: 1rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.form-group {
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: all 0.2s;
+  background: white;
+}
+
+.form-group input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+  outline: none;
+}
+
+/* Variables Section */
+.variables-section {
+  margin-top: 1rem;
+}
+
+.variables-section h3 {
+  font-size: 1rem;
+  color: var(--text-light);
+  margin-bottom: 1rem;
+}
+
+.variables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.variable-input {
+  position: relative;
+  background: white;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.variable-input:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+/* Action Buttons */
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.btn-secondary {
+  background: white;
+  color: var(--text-color);
+  border: 2px solid #e5e7eb;
+}
+
+.btn-secondary:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  .modal-content {
+    margin: 1rem;  /* רווח קטן יותר במובייל */
+    width: calc(100% - 2rem);
+    padding: 1.25rem; 
+  }
+
+  .contact-form {
+    padding: 0.5rem;  /* ריפוד פנימי קטן יותר במובייל */
+  }
+
+  /* מרווח בין השדות */
+  .form-row {
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-group.full-width {
+    grid-column: 1 / -1;  /* תופס את כל הרוחב */
+  }
+
+  .variables-grid {
+    grid-template-columns: repeat(2, 1fr);  /* שני טורים למשתנים */
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 1rem;
+  }
+}
+
+/* Loading State */
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+}
+
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  top: 50%;
+  left: 50%;
+  margin: -10px 0 0 -10px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s infinite linear;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Scrollbar Styling */
+.modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: #c5c5c5;
+  border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 } 

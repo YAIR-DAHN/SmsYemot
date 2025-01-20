@@ -481,6 +481,10 @@ const messageManager = {
             const finalMessage = replaceVariables(template, contact);
             await api.sendSms(token, contact.phone, finalMessage, senderNumber, isFlash);
             successCount++;
+            
+            // השהייה של 2 שניות בין שליחה לשליחה
+            await delay(2000);
+            
         } catch (err) {
             failedCount++;
             errors.push({
@@ -625,6 +629,9 @@ const messageManager = {
           message: finalMessage,
           status: 'נשלח בהצלחה'
         });
+
+        // השהייה של 2 שניות בין שליחה לשליחה
+        await delay(2000);
 
       } catch (err) {
         failCount++;
@@ -1631,35 +1638,5 @@ ${currentCount ? `\nברשימה הקיימת יש ${currentCount} אנשי קש
   }
 }; 
 
-// עדכון פונקציית השליחה
-async function sendMessage(contact, message, campaignType = 'sms') {
-  const token = storage.getItem('token');
-  if (!token) throw new Error('לא נמצא טוקן תקף');
-
-  // החלפת המשתנים בהודעה
-  let finalMessage = message;
-  finalMessage = finalMessage.replace(/\{שם\}/g, contact.name || '');
-  finalMessage = finalMessage.replace(/\{משתנה1\}/g, contact.var1 || '');
-  finalMessage = finalMessage.replace(/\{משתנה2\}/g, contact.var2 || '');
-  finalMessage = finalMessage.replace(/\{משתנה3\}/g, contact.var3 || '');
-  finalMessage = finalMessage.replace(/\{משתנה4\}/g, contact.var4 || '');
-  finalMessage = finalMessage.replace(/\{משתנה5\}/g, contact.var5 || '');
-
-  try {
-    if (campaignType === 'voice') {
-      // ... קוד קיים לשליחת הודעה קולית
-    } else {
-      const params = {
-        message: finalMessage,
-        senderId: document.getElementById('sender-id').value,
-        dest: contact.phone,
-        flash: document.getElementById('flash-message').checked
-      };
-      await api.sendSMS(token, params);
-    }
-    return true;
-  } catch (err) {
-    console.error(err);
-    return false;
-  }
-} 
+// עדכון פונקציית השהייה
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms)); 
