@@ -474,16 +474,33 @@ const messageManager = {
     let successCount = 0;
     let failedCount = 0;
     const errors = [];
+    const totalContacts = contactManager.contacts.length;
+    
+    // יצירת סרגל התקדמות
+    const progressBar = document.querySelector('.progress-fill');
+    const progressStatus = document.getElementById('progress-status');
     
     // שליחה לכל איש קשר בנפרד
-    for (const contact of contactManager.contacts) {
+    for (let i = 0; i < totalContacts; i++) {
+        const contact = contactManager.contacts[i];
         try {
-            const finalMessage = replaceVariables(template, contact);
-            await api.sendSms(token, contact.phone, finalMessage, senderNumber, isFlash);
-            successCount++;
+            // עדכון סרגל ההתקדמות
+            const progress = ((i + 1) / totalContacts) * 100;
+            progressBar.style.width = `${progress}%`;
+            progressStatus.textContent = `שולח הודעה ${i + 1} מתוך ${totalContacts} (${successCount} הצלחות, ${failedCount} כשלונות)`;
             
-            // השהייה של 2 שניות בין שליחה לשליחה
-            await delay(2000);
+            const finalMessage = replaceVariables(template, contact);
+            
+            // שליחת ההודעה וחכייה לתשובה
+            const response = await api.sendSms(token, contact.phone, finalMessage, senderNumber, isFlash);
+            
+            // רק אם השליחה הצליחה
+            if (response) {
+                successCount++;
+                
+                // השהייה של 4 שניות אחרי שליחה מוצלחת
+                await delay(4000);
+            }
             
         } catch (err) {
             failedCount++;
@@ -491,14 +508,21 @@ const messageManager = {
                 contact: contact,
                 error: err.message
             });
+            
+            // גם במקרה של שגיאה נחכה קצת
+            await delay(1000);
         }
     }
+    
+    // עדכון סופי של סרגל ההתקדמות
+    progressBar.style.width = '100%';
+    progressStatus.textContent = `הסתיימה שליחת ${totalContacts} הודעות (${successCount} הצלחות, ${failedCount} כשלונות)`;
     
     // שמירה בהיסטוריה
     this.saveToHistory({
         timestamp: new Date().toISOString(),
         type: 'sms',
-        recipients: contactManager.contacts.length,
+        recipients: totalContacts,
         message: template,
         status: 'נשלח בהצלחה',
         successCount,
@@ -507,7 +531,7 @@ const messageManager = {
 
     // הצגת סיכום השליחה
     this.showSendingSummary({
-        total: contactManager.contacts.length,
+        total: totalContacts,
         success: successCount,
         failed: failedCount,
         errors: errors,
@@ -586,75 +610,97 @@ const messageManager = {
     let successCount = 0;
     let failCount = 0;
     const errors = [];
+    const totalContacts = contacts.length;
 
-    for (const contact of contacts) {
-      try {
-        // החלפת המשתנים בהודעה
-        let finalMessage = messageTemplate;
-        finalMessage = finalMessage.replace(/\{שם\}/g, contact.name || '');
-        for (let i = 1; i <= 5; i++) {
-          const varValue = contact[`var${i}`] || '';
-          finalMessage = finalMessage.replace(new RegExp(`\\{משתנה${i}\\}`, 'g'), varValue);
+    // יצירת סרגל התקדמות
+    const progressBar = document.querySelector('.progress-fill');
+    const progressStatus = document.getElementById('progress-status');
+
+    for (let i = 0; i < totalContacts; i++) {
+        const contact = contacts[i];
+        try {
+            // עדכון סרגל ההתקדמות
+            const progress = ((i + 1) / totalContacts) * 100;
+            progressBar.style.width = `${progress}%`;
+            progressStatus.textContent = `שולח הודעה ${i + 1} מתוך ${totalContacts} (${successCount} הצלחות, ${failCount} כשלונות)`;
+
+            // החלפת המשתנים בהודעה
+            let finalMessage = messageTemplate;
+            finalMessage = finalMessage.replace(/\{שם\}/g, contact.name || '');
+            for (let i = 1; i <= 5; i++) {
+                const varValue = contact[`var${i}`] || '';
+                finalMessage = finalMessage.replace(new RegExp(`\\{משתנה${i}\\}`, 'g'), varValue);
+            }
+
+            let response;
+            if (isVoiceCampaign) {
+                const voiceSettings = {
+                    voice: document.getElementById('voice-type').value,
+                    speed: document.getElementById('voice-speed').value,
+                    repeat: document.getElementById('repeat-times').value
+                };
+
+                response = await api.sendTTS(token, {
+                    dest: contact.phone,
+                    message: finalMessage,
+                    ...voiceSettings
+                });
+            } else {
+                response = await api.sendSMS(token, {
+                    dest: contact.phone,
+                    message: finalMessage,
+                    sender: senderId,
+                    flash: isFlash ? 1 : 0
+                });
+            }
+
+            // רק אם השליחה הצליחה
+            if (response) {
+                successCount++;
+                
+                // הוספה להיסטוריה
+                historyManager.addToHistory({
+                    timestamp: new Date(),
+                    type: isVoiceCampaign ? 'voice' : 'sms',
+                    recipient: contact.phone,
+                    name: contact.name,
+                    message: finalMessage,
+                    status: 'נשלח בהצלחה'
+                });
+
+                // השהייה של 4 שניות אחרי שליחה מוצלחת
+                await delay(4000);
+            }
+
+        } catch (err) {
+            failCount++;
+            errors.push({ contact, error: err.message });
+            
+            historyManager.addToHistory({
+                timestamp: new Date(),
+                type: isVoiceCampaign ? 'voice' : 'sms',
+                recipient: contact.phone,
+                name: contact.name,
+                message: messageTemplate,
+                status: 'שליחה נכשלה'
+            });
+
+            // גם במקרה של שגיאה נחכה קצת
+            await delay(1000);
         }
-
-        if (isVoiceCampaign) {
-          const voiceSettings = {
-            voice: document.getElementById('voice-type').value,
-            speed: document.getElementById('voice-speed').value,
-            repeat: document.getElementById('repeat-times').value
-          };
-
-          await api.sendTTS(token, {
-            dest: contact.phone,
-            message: finalMessage,
-            ...voiceSettings
-          });
-        } else {
-          await api.sendSMS(token, {
-            dest: contact.phone,
-            message: finalMessage,
-            sender: senderId,
-            flash: isFlash ? 1 : 0
-          });
-        }
-
-        successCount++;
-        
-        // הוספה להיסטוריה
-        historyManager.addToHistory({
-          timestamp: new Date(),
-          type: isVoiceCampaign ? 'voice' : 'sms',
-          recipient: contact.phone,
-          name: contact.name,
-          message: finalMessage,
-          status: 'נשלח בהצלחה'
-        });
-
-        // השהייה של 2 שניות בין שליחה לשליחה
-        await delay(2000);
-
-      } catch (err) {
-        failCount++;
-        errors.push({ contact, error: err.message });
-        
-        historyManager.addToHistory({
-          timestamp: new Date(),
-          type: isVoiceCampaign ? 'voice' : 'sms',
-          recipient: contact.phone,
-          name: contact.name,
-          message: messageTemplate,
-          status: 'שליחה נכשלה'
-        });
-      }
     }
+
+    // עדכון סופי של סרגל ההתקדמות
+    progressBar.style.width = '100%';
+    progressStatus.textContent = `הסתיימה שליחת ${totalContacts} הודעות (${successCount} הצלחות, ${failCount} כשלונות)`;
 
     // הצגת סיכום השליחה
     this.showSendingSummary({
-      total: contacts.length,
-      success: successCount,
-      failed: failCount,
-      errors,
-      isVoiceCampaign
+        total: totalContacts,
+        success: successCount,
+        failed: failCount,
+        errors,
+        isVoiceCampaign
     });
   },
 
