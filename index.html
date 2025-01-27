@@ -342,6 +342,31 @@
                 </span>
               </label>
             </div>
+            <div class="batch-settings">
+              <h4 class="settings-title">
+                <i class="ri-timer-line"></i>
+                הגדרות השהייה
+                <span class="info-tooltip" data-tooltip="עקב הגבלה מצד ימות המשיח ולהבטחת שליחה תקינה, יש לשמור על מרווחי זמן בין שליחת ההודעות">
+                  <i class="ri-information-line"></i>
+                </span>
+              </h4>
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enable-batch-delay" checked>
+                  הפעל השהייה
+                </label>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="batch-size">כמות הודעות להשהייה:</label>
+                  <input type="number" id="batch-size" class="form-control" value="10" min="1" max="100">
+                </div>
+                <div class="form-group">
+                  <label for="batch-delay">זמן השהייה (בדקות):</label>
+                  <input type="number" id="batch-delay" class="form-control" value="2.5" min="0.5" step="0.5">
+                </div>
+              </div>
+            </div>
             <div class="form-actions-right">
               <button id="preview-message" class="btn btn-secondary">
                 <i class="ri-eye-line"></i>

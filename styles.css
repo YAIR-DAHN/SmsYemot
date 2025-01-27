@@ -2163,4 +2163,180 @@ body {
 
 .modal-content::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+.batch-settings {
+  background: linear-gradient(to right, #f8f9fa, #ffffff);
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  transition: all 0.3s ease;
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  color: #2c3e50;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.settings-title i {
+  color: #4361ee;
+  font-size: 1.25rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 2px solid #4361ee;
+  border-radius: 4px;
+  margin: 0;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.checkbox-label input[type="checkbox"]:checked {
+  background-color: #4361ee;
+}
+
+.checkbox-label input[type="checkbox"]:checked::before {
+  content: "✓";
+  color: white;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.checkbox-label:hover input[type="checkbox"] {
+  border-color: #3651d4;
+}
+
+.batch-settings .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.batch-settings .form-group {
+  position: relative;
+}
+
+.batch-settings label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #4a5568;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.batch-settings input[type="number"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.batch-settings input[type="number"]:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+}
+
+/* סטיילינג למצב מושבת */
+.batch-settings.disabled .form-row {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.batch-settings.disabled input[type="number"] {
+  background-color: #f8f9fa;
+  border-color: #e9ecef;
+  color: #6c757d;
+}
+
+.batch-settings.disabled label {
+  color: #6c757d;
+}
+
+/* אנימציית מעבר בין מצבים */
+.batch-settings .form-row {
+  transition: opacity 0.3s ease;
+}
+
+/* התאמה למובייל */
+@media (max-width: 768px) {
+  .batch-settings {
+    padding: 1.25rem;
+  }
+
+  .batch-settings .form-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* סטיילינג לטולטיפ */
+.info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+
+.info-tooltip i {
+  color: #4361ee;
+  font-size: 1.1rem;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.info-tooltip:hover i {
+  opacity: 1;
+}
+
+.info-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  right: 50%;
+  transform: translateX(50%);
+  padding: 0.75rem 1rem;
+  background: #2d3748;
+  color: white;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  width: max-content;
+  max-width: 300px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  z-index: 1000;
+}
+
+.info-tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
+  bottom: calc(100% + 10px);
 } 

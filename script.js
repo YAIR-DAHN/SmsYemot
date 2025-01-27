@@ -471,50 +471,81 @@ const messageManager = {
 
   async sendSMSCampaign(token, template, senderNumber) {
     const isFlash = document.getElementById('flash-message').checked;
+    const enableBatchDelay = document.getElementById('enable-batch-delay').checked;
+    const batchSize = parseInt(document.getElementById('batch-size').value) || 10;
+    const batchDelay = (parseFloat(document.getElementById('batch-delay').value) || 2.5) * 60 * 1000; // המרה לmilliseconds
+    
     let successCount = 0;
     let failedCount = 0;
     const errors = [];
     const totalContacts = contactManager.contacts.length;
     
-    // יצירת סרגל התקדמות
     const progressBar = document.querySelector('.progress-fill');
     const progressStatus = document.getElementById('progress-status');
     
-    // שליחה לכל איש קשר בנפרד
-    for (let i = 0; i < totalContacts; i++) {
-        const contact = contactManager.contacts[i];
-        try {
-            // עדכון סרגל ההתקדמות
-            const progress = ((i + 1) / totalContacts) * 100;
-            progressBar.style.width = `${progress}%`;
-            progressStatus.textContent = `שולח הודעה ${i + 1} מתוך ${totalContacts} (${successCount} הצלחות, ${failedCount} כשלונות)`;
+    // חלוקה לקבוצות
+    const batches = [];
+    for (let i = 0; i < totalContacts; i += batchSize) {
+        batches.push(contactManager.contacts.slice(i, i + batchSize));
+    }
+    
+    // שליחה לפי קבוצות
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const currentBatch = batches[batchIndex];
+        const batchStart = batchIndex * batchSize;
+        
+        // שליחת הקבוצה הנוכחית
+        for (let i = 0; i < currentBatch.length; i++) {
+            const contact = currentBatch[i];
+            const currentIndex = batchStart + i;
             
-            const finalMessage = replaceVariables(template, contact);
-            
-            // שליחת ההודעה וחכייה לתשובה
-            const response = await api.sendSms(token, contact.phone, finalMessage, senderNumber, isFlash);
-            
-            // רק אם השליחה הצליחה
-            if (response) {
-                successCount++;
+            try {
+                // עדכון סרגל ההתקדמות
+                const progress = ((currentIndex + 1) / totalContacts) * 100;
+                progressBar.style.width = `${progress}%`;
+                progressStatus.textContent = `שולח הודעה ${currentIndex + 1} מתוך ${totalContacts} (${successCount} הצלחות, ${failedCount} כשלונות)`;
                 
-                // השהייה של 4 שניות אחרי שליחה מוצלחת
-                await delay(4000);
+                const finalMessage = replaceVariables(template, contact);
+                const response = await api.sendSms(token, contact.phone, finalMessage, senderNumber, isFlash);
+                
+                if (response) {
+                    successCount++;
+                    await delay(4000); // השהייה בין הודעות בודדות
+                }
+                
+            } catch (err) {
+                failedCount++;
+                errors.push({
+                    contact: contact,
+                    error: err.message
+                });
+                await delay(1000);
             }
+        }
+        
+        // בדיקה אם צריך לבצע השהייה בין קבוצות
+        if (enableBatchDelay && batchIndex < batches.length - 1) {
+            const startTime = Date.now();
+            const updateDelayStatus = () => {
+                const elapsed = Date.now() - startTime;
+                const remaining = Math.max(0, batchDelay - elapsed);
+                const remainingSeconds = Math.ceil(remaining / 1000);
+                const remainingMinutes = Math.floor(remainingSeconds / 60);
+                const remainingSecs = remainingSeconds % 60;
+                
+                progressStatus.textContent = `מבצע השהייה בין קבוצות... נותרו ${remainingMinutes}:${remainingSecs.toString().padStart(2, '0')} דקות`;
+                
+                if (remaining > 0) {
+                    requestAnimationFrame(updateDelayStatus);
+                }
+            };
             
-        } catch (err) {
-            failedCount++;
-            errors.push({
-                contact: contact,
-                error: err.message
-            });
-            
-            // גם במקרה של שגיאה נחכה קצת
-            await delay(1000);
+            updateDelayStatus();
+            await delay(batchDelay);
         }
     }
     
-    // עדכון סופי של סרגל ההתקדמות
+    // עדכון סופי
     progressBar.style.width = '100%';
     progressStatus.textContent = `הסתיימה שליחת ${totalContacts} הודעות (${successCount} הצלחות, ${failedCount} כשלונות)`;
     
@@ -1418,6 +1449,26 @@ document.addEventListener('DOMContentLoaded', () => {
       navLinks.classList.remove('show');
       menuToggle.querySelector('i').className = 'ri-menu-line';
     });
+  });
+
+  // להוסיף בתחילת הקוד
+  document.getElementById('enable-batch-delay')?.addEventListener('change', function() {
+    const batchSettings = document.querySelector('.batch-settings');
+    if (this.checked) {
+        batchSettings.classList.remove('disabled');
+    } else {
+        batchSettings.classList.add('disabled');
+    }
+  });
+
+  // להפעיל את הבדיקה בטעינת העמוד
+  document.addEventListener('DOMContentLoaded', () => {
+    const enableBatchDelay = document.getElementById('enable-batch-delay');
+    const batchSettings = document.querySelector('.batch-settings');
+    
+    if (enableBatchDelay && !enableBatchDelay.checked) {
+        batchSettings.classList.add('disabled');
+    }
   });
 }); 
 
